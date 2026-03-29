@@ -99,9 +99,9 @@ module<leds_count: uint> led_blink (
     }
 
     leds = match mode {
-        case Counter => sec_counter,
-        case Running => shift_reg,
-        case Chess => {
+        Counter => sec_counter,
+        Running => shift_reg,
+        Chess => {
             let pattern: logic<width: leds_count> = if (leds_count % 2 == 0) { // Local variables allowed, static ifs
                 [[2'b10] * (leds_count / 2)]
             }

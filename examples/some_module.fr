@@ -1,0 +1,18 @@
+module top (
+    clk: input<clock, pin: A1, frequency: 27MHz>,
+    rst: input<reset, pin: B2, active: low>,
+
+    leds: output<width: 6, pins: [A3, B4, A5, B6, A7, B8], active: low>,
+    dbg_led: output<pin: C2, active: low>,
+    btn: input<pin: C3>,
+)
+{
+    led_blink<leds_count: 6> LedBlink (
+        clk: clk,
+        rst: rst,
+        leds: leds,
+        next_mode: btn,
+    );
+
+    dbg_led = led_blink.sec_counter[0];
+}
