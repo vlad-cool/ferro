@@ -22,7 +22,7 @@ pub enum ConnectionModifiers {
 pub struct Connection {
     pub name: String,
     pub direction: ConnectionDirection,
-    // pub width: usize,
+    pub width: String, // TODO generic expression
     pub modifiers: Vec<ConnectionModifiers>,
 }
 

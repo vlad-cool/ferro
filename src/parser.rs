@@ -135,11 +135,13 @@ fn parse_interface<'a>(
 
     let bytes: &[u8] = string.as_bytes();
 
-    if *offset == string.len() {
-        return Ok(None);
-    }
+    let width: Option<String> = if *offset <= string.len() && bytes[*offset] == b'[' {
+        Some(parse_brackets(string, '[', ']', offset)?.to_string())
+    } else {
+        None
+    };
 
-    if bytes[*offset] == b'<' {
+    if *offset <= string.len() && bytes[*offset] == b'<' {
         let modifiers: &str = parse_brackets(string, '<', '>', offset)?;
 
         println!("Name: {}; Modifiers: {}", name, modifiers);
@@ -151,11 +153,14 @@ fn parse_interface<'a>(
         return Err(ParseError { err_index: *offset });
     }
 
-    *offset += 1;
+    if *offset < bytes.len() && bytes[*offset] == b',' {
+        *offset += 1;
+    }
 
     Ok(Some(Connection {
         name: name.to_string(),
         direction,
+        width: width.unwrap_or("1".to_string()),
         modifiers: vec![],
     }))
 }
