@@ -6,24 +6,29 @@ pub struct Module {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum ConnectionDirection {
+pub enum PortDir {
     Input,
     Output,
     Inout,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum ConnectionModifiers {
-    Clock,
+pub struct Frequency {
+    frequency: u64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum PortModifier {
+    Clock(Frequency),
     Reset,
 }
 
 #[derive(Clone, Debug)]
-pub struct Connection {
+pub struct Port {
     pub name: String,
-    pub direction: ConnectionDirection,
+    pub direction: PortDir,
     pub width: String, // TODO generic expression
-    pub modifiers: Vec<ConnectionModifiers>,
+    pub modifiers: Vec<PortModifier>,
 }
 
 pub struct Identifier {
