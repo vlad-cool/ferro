@@ -1,10 +1,8 @@
-use core::num;
 use std::{rc::Rc, vec};
 
 use crate::{
     expression::{
-        self, BinaryExpression, BinaryOperation, CompileTimeExpression, Const, Parameter,
-        UnaryExpression,
+        BinaryExpression, BinaryOperation, CompileTimeExpression, Const, Parameter, UnaryExpression,
     },
     syntax::{Port, PortDir},
 };
@@ -193,10 +191,13 @@ fn parse_port_list<'a>(string: &'a str, offset: &mut usize) -> Result<Option<Por
 
     let bytes: &[u8] = string.as_bytes();
 
-    let width: Option<String> = if *offset <= string.len() && bytes[*offset] == b'[' {
-        Some(parse_brackets(string, '[', ']', offset)?.to_string())
+    let width: Rc<Box<dyn CompileTimeExpression>> = if *offset <= string.len()
+        && bytes[*offset] == b'['
+    {
+        let mut inner_offset: usize = 0;
+        parse_compile_time_expression(parse_brackets(string, '[', ']', offset)?, &mut inner_offset)?
     } else {
-        None
+        Rc::new(Box::new(Const { value: 1 }))
     };
 
     if *offset <= string.len() && bytes[*offset] == b'<' {
@@ -205,7 +206,9 @@ fn parse_port_list<'a>(string: &'a str, offset: &mut usize) -> Result<Option<Por
         println!("Name: {}; Modifiers: {}", name, modifiers);
     }
 
-    skip_ascii_whitespace(string, offset)?;
+    if let Err(_) = skip_ascii_whitespace(string, offset) {
+        return Ok(None);
+    }
 
     if *offset < bytes.len() && bytes[*offset] != b',' {
         return Err(ParseError { err_index: *offset });
@@ -218,7 +221,7 @@ fn parse_port_list<'a>(string: &'a str, offset: &mut usize) -> Result<Option<Por
     Ok(Some(Port {
         name: name.to_string(),
         direction,
-        width: width.unwrap_or("1".to_string()),
+        width,
         modifiers: vec![],
     }))
 }
@@ -660,20 +663,7 @@ mod tests {
             || (1 + 2 + 3 + 4 + 5),
         ];
 
-        // let input = "clog2(A) + 4";
-        // let mut offset = 0;
-
-        // let expr = parse_compile_time_expression(input, &mut offset).expect("parse failed");
-
-        // // assert_eq!(offset, input.len());
-
         let map: HashMap<String, usize> = HashMap::new();
-
-        // map.insert("A".to_string(), 8);
-
-        // // eprintln!()
-
-        // assert_eq!(expr.calculate(&map), 4 + 4);
 
         for i in 0..test_str.len() {
             let mut offset: usize = 0;
@@ -823,5 +813,10 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_parser() {
+        crate::parser::parse_str(include_str!("../examples/some_module.fr")).unwrap();
     }
 }

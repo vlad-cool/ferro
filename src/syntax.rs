@@ -1,3 +1,7 @@
+use std::rc::Rc;
+
+use crate::expression::CompileTimeExpression;
+
 pub struct Module {
     name: String,
     parameters: Vec<()>, // TODO
@@ -27,7 +31,7 @@ pub enum PortModifier {
 pub struct Port {
     pub name: String,
     pub direction: PortDir,
-    pub width: String, // TODO generic expression
+    pub width: Rc<Box<dyn CompileTimeExpression>>,
     pub modifiers: Vec<PortModifier>,
 }
 
