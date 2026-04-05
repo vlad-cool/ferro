@@ -25,6 +25,7 @@ pub struct Frequency {
 pub enum PortModifier {
     Clock(Frequency),
     Reset,
+    LogicType(LogicType),
 }
 
 #[derive(Clone, Debug)]
@@ -33,6 +34,22 @@ pub struct Port {
     pub direction: PortDir,
     pub width: Rc<Box<dyn CompileTimeExpression>>,
     pub modifiers: Vec<PortModifier>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum LogicType {
+    Reg,
+    Wire,
+    Wor,
+    Wand,
+    Unknown,
+}
+
+pub struct Logic {
+    pub name: String,
+    pub width: Rc<Box<dyn CompileTimeExpression>>,
+    pub src: Option<Rc<Box<dyn CombLogic>>>,
+    pub logic_type: LogicType,
 }
 
 pub struct Identifier {

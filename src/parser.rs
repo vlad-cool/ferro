@@ -109,7 +109,7 @@ fn parse_number(string: &str, offset: &mut usize) -> Result<usize, ParseError> {
     Ok(string[start..i].parse::<usize>().unwrap())
 }
 
-fn parse_colon<'a>(string: &'a str, offset: &mut usize) -> Result<(), ParseError> {
+fn parse_colon(string: &str, offset: &mut usize) -> Result<(), ParseError> {
     skip_ascii_whitespace(string, offset)?;
 
     let bytes: &[u8] = string.as_bytes();
@@ -313,7 +313,6 @@ pub fn parse_compile_time_expression(
             operations.push(BinaryOperation::Div);
         } else if first_char == b'%' {
             *offset = *offset + 1;
-            expressions.push(parse_compile_time_expression(string, offset)?);
             operations.push(BinaryOperation::Mod);
         } else if parse_keyword(string, offset, "clog2") {
             expressions.push(Rc::new(Box::new(UnaryExpression {
@@ -350,41 +349,7 @@ pub fn parse_compile_time_expression(
         }
     }
 
-    // assert!(expressions.len() > 0); // TODO
-    // TODO Higher priority operations
-    // for priority in 0..(BinaryExpression::MIN_PRIORITY) {
-    //     let mut reduced_expressions: Vec<Rc<Box<dyn CompileTimeExpression>>> = vec![];
-    //     let mut reduced_operations: Vec<BinaryOperation> = vec![];
-
-    //     for i in 0..(operations.len() + 1) {
-    //         if i == operations.len() {}
-    //         if operations[i].priority() == priority {
-    //             reduced_expressions.push(Rc::new(Box::new(BinaryExpression {
-    //                 lhs: expressions[i].clone(),
-    //                 rhs: expressions[i + 1].clone(),
-    //                 op: operations[i].clone(),
-    //             })));
-    //         } else {
-    //             reduced_expressions.push(expressions[i].clone());
-    //             reduced_operations.push(operations[i].clone());
-    //         }
-    //     }
-
-    //     expressions = reduced_expressions;
-    //     operations = reduced_operations;
-    // }
-
     assert!(expressions.len() > 0); // TODO
-
-    // let mut expression: Rc<Box<dyn CompileTimeExpression>> = expressions[0].clone();
-
-    // for i in 0..(operations.len()) {
-    //     expression = Rc::new(Box::new(BinaryExpression {
-    //         lhs: expression,
-    //         rhs: expressions[i].clone(),
-    //         op: operations[i].clone(),
-    //     }))
-    // }
 
     eprintln!("Expressions: {:?}", expressions);
     eprintln!("Operations: {:?}", operations);
@@ -428,6 +393,7 @@ pub fn parse_str(string: &str) -> Result<(), ParseError> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use rand::{self, RngExt};
 
     use super::*;
 
@@ -560,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_simple_constant() {
+    fn test_parse_expressions() {
         let test_str: [&str; 48] = [
             "0",
             "1",
@@ -680,7 +646,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_expressions() {
+    fn test_parse_parametric_expressions() {
         let test_str: [&str; _] = [
             "x",
             "y",
@@ -732,11 +698,11 @@ mod tests {
         ];
 
         let test_lambdas: [fn(usize, usize, usize) -> usize; _] = [
-            |x, y, z| x,
-            |x, y, z| y,
-            |x, y, z| z,
+            |x, _, _| x,
+            |_, y, _| y,
+            |_, _, z| z,
             |x, y, z| x + y,
-            |x, y, z| y - z,
+            |_, y, z| y - z,
             |x, y, z| x * y,
             |x, y, z| z / 2,
             |x, y, z| x % y,
@@ -786,12 +752,13 @@ mod tests {
         map.insert("x".to_string(), 8);
         map.insert("y".to_string(), 8);
         map.insert("z".to_string(), 8);
-        // let mut rng = rand::thread_rng();
+
+        let mut rng = rand::rng();
 
         for _ in 0..200 {
-            // map.insert("x".to_string(), rng.gen_range(1..=100));
-            // map.insert("y".to_string(), rng.gen_range(1..=100));
-            // map.insert("z".to_string(), rng.gen_range(1..=100));
+            map.insert("x".to_string(), rng.random_range(0..=200));
+            map.insert("y".to_string(), rng.random_range(0..=200));
+            map.insert("z".to_string(), rng.random_range(0..=200));
 
             for i in 0..test_str.len() {
                 let mut offset: usize = 0;
@@ -803,7 +770,7 @@ mod tests {
 
                 eprintln!("Expression: {:?}", exp);
 
-                let calc = exp.calculate(&map);
+                let calc: Option<usize> = exp.calculate(&map);
 
                 let res =
                     std::panic::catch_unwind(|| test_lambdas[i](map["x"], map["y"], map["z"]));
