@@ -1,5 +1,3 @@
-use std::vec;
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Keyword {
     Module,
@@ -15,13 +13,15 @@ pub enum TokenType {
     Keyword(Keyword),
     Name(String),
     Number(String),
+    LineComment(String),
+    BlockComment(String),
     Comma,
     Colon,
     Semicolon,
     OpenParenthesis,
     CloseParenthesis,
     OpenBracket,
-    CloseBracker,
+    CloseBracket,
     OpenBrace,
     CloseBrace,
     Less,
@@ -61,7 +61,7 @@ impl Token {
         ("(", TokenType::OpenParenthesis),
         (")", TokenType::CloseParenthesis),
         ("[", TokenType::OpenBracket),
-        ("]", TokenType::CloseBracker),
+        ("]", TokenType::CloseBracket),
         ("{", TokenType::OpenBrace),
         ("}", TokenType::CloseBrace),
         ("<=", TokenType::LessEq),
@@ -104,6 +104,37 @@ impl Token {
         let mut tokens: Vec<Self> = Vec::new();
 
         'main_loop: while offset < string.len() {
+            if string[offset..].starts_with("//") {
+                let mut i: usize = 2;
+                while i + offset < string.len() && !string[(offset + i)..].starts_with("\n") {
+                    i += 1;
+                }
+                tokens.push(Self {
+                    offset,
+                    token_type: TokenType::LineComment(
+                        string[(offset + 2)..(offset + i)].to_string(),
+                    ),
+                });
+                offset += i;
+                continue 'main_loop;
+            }
+
+            if string[offset..].starts_with("/*") {
+                let mut i: usize = 2;
+                while i + offset < string.len() && !string[(offset + i)..].starts_with("*/") {
+                    i += 1;
+                }
+                tokens.push(Self {
+                    offset,
+                    token_type: TokenType::BlockComment(
+                        string[(offset + 2)..(offset + i)].to_string(),
+                    ),
+                });
+                
+                offset += i + 2;
+                continue 'main_loop;
+            }
+
             for (token_str, token_type) in Self::TOKEN_MAP {
                 if string[offset..].starts_with(token_str) {
                     let token_type: TokenType = token_type.clone();
@@ -182,6 +213,9 @@ mod tests {
         {
             {
                 let parsed_tokens: Vec<Token> = Token::from_str(string);
+
+                eprintln!("parsed tokens: {:?}", parsed_tokens);
+                eprintln!("expected tokens: {:?}", tokens);
 
                 assert_eq!(
                     tokens.len(),
@@ -280,7 +314,7 @@ mod tests {
     #[test]
     fn mixed_statement() {
         assert_tokens(
-            "module foo(input a, input b);",
+            "module foo(input a, input b); // TEST COMMENT",
             &[
                 TokenType::Keyword(Keyword::Module),
                 TokenType::Name("foo".to_string()),
@@ -292,6 +326,37 @@ mod tests {
                 TokenType::Name("b".to_string()),
                 TokenType::CloseParenthesis,
                 TokenType::Semicolon,
+                TokenType::LineComment(" TEST COMMENT".to_string()),
+            ],
+        );
+    }
+
+    #[test]
+    fn block_comment() {
+        assert_tokens(
+            "module foo(input a, input b); /*  THIS IS TEST COMMENT
+ TEST BLOCK COMMENT
+ABOBA AMOGUS*/ input, output",
+            &[
+                TokenType::Keyword(Keyword::Module),
+                TokenType::Name("foo".to_string()),
+                TokenType::OpenParenthesis,
+                TokenType::Name("input".to_string()),
+                TokenType::Name("a".to_string()),
+                TokenType::Comma,
+                TokenType::Name("input".to_string()),
+                TokenType::Name("b".to_string()),
+                TokenType::CloseParenthesis,
+                TokenType::Semicolon,
+                TokenType::BlockComment(
+                    "  THIS IS TEST COMMENT
+ TEST BLOCK COMMENT
+ABOBA AMOGUS"
+                        .to_string(),
+                ),
+                TokenType::Name("input".to_string()),
+                TokenType::Comma,
+                TokenType::Name("output".to_string()),
             ],
         );
     }

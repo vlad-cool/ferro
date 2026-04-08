@@ -392,14 +392,14 @@ pub fn parse_str(string: &str) -> Result<(), ParseError> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use rand::{self, RngExt};
+    use std::collections::HashMap;
 
     use super::*;
 
     fn clog2(n: usize) -> usize {
         let mut res: usize = 0;
-        let mut value = n;
+        let mut value: usize = n;
 
         while value > 0 {
             value /= 2;
@@ -626,7 +626,7 @@ mod tests {
             || (1 * 2) + (3 * 4),
             || clog2(2 + 6),
             || (7 + 8) - (clog2(32) / 4),
-            || (1 + 2 + 3 + 4 + 5),
+            || 1 + 2 + 3 + 4 + 5,
         ];
 
         let map: HashMap<String, usize> = HashMap::new();
@@ -698,33 +698,33 @@ mod tests {
         ];
 
         let test_lambdas: [fn(usize, usize, usize) -> usize; _] = [
-            |x, _, _| x,
-            |_, y, _| y,
-            |_, _, z| z,
-            |x, y, z| x + y,
-            |_, y, z| y - z,
-            |x, y, z| x * y,
-            |x, y, z| z / 2,
-            |x, y, z| x % y,
-            |x, y, z| x + 1,
-            |x, y, z| y - 3,
-            |x, y, z| z * 4,
-            |x, y, _z| clog2(x),
-            |x, y, _z| clog2(y + 1),
-            |x, y, z| clog2(2 * z),
+            |x, _y, _z| x,
+            |_x, y, _z| y,
+            |_x, _y, z| z,
+            |x, y, _z| x + y,
+            |_x, y, z| y - z,
+            |x, y, _z| x * y,
+            |_x, _y, z| z / 2,
+            |x, y, _z| x % y,
+            |x, _y, _z| x + 1,
+            |_x, y, _z| y - 3,
+            |_x, _y, z| z * 4,
+            |x, _y, _z| clog2(x),
+            |_x, y, _z| clog2(y + 1),
+            |_x, _y, z| clog2(2 * z),
             |x, y, z| x + y + z,
             |x, y, _z| x * 2 + y,
-            |x, y, z| z + (x * 3),
+            |x, _y, z| z + (x * 3),
             |x, y, z| (x + y) * z,
-            |x, y, _z| clog2(x) + 1,
-            |x, y, _z| 1 + clog2(y),
+            |x, _y, _z| clog2(x) + 1,
+            |_x, y, _z| 1 + clog2(y),
             |x, y, _z| (x + 2) * (y + 3),
             |x, y, z| z * (x + y),
             |x, y, _z| (x + clog2(y)) * 2,
             |x, y, z| (x * y) + (y * z),
             |x, y, _z| clog2(x + y),
             |x, y, z| (x + 1) + (y + 2) + (z + 3),
-            |x, y, z| (x * y * z),
+            |x, y, z| x * y * z,
             |x, y, _z| clog2(x * y),
             |x, y, z| x + clog2(y * z),
             |x, y, z| (x + clog2(y)) * (z + 2),
