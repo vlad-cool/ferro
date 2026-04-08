@@ -1,255 +1,272 @@
-use std::{rc::Rc, vec};
+use std::{f32::NAN, rc::Rc, vec};
 
 use crate::{
     expression::{
-        BinaryExpression, BinaryOperation, CompileTimeExpression, Const, Parameter, UnaryExpression,
+        self, BinaryExpression, BinaryOperation, CompileTimeExpression, Const, Parameter,
+        UnaryExpression,
     },
-    syntax::{Port, PortDir},
+    syntax::{Module, Port, PortDir, PortModifier},
+    tokens::{Keyword, Token, TokenType},
 };
 
 #[derive(Debug)]
-pub struct ParseError {
-    err_index: usize,
+pub enum ParseError {
+    UnexpectedEnd,
+    UnexpectedToken(Token),
+    ExpectedComma,
 }
 
-fn skip_ascii_whitespace(string: &str, offset: &mut usize) -> Result<(), ParseError> {
-    let bytes: &[u8] = string.as_bytes();
-    let mut i: usize = *offset;
+// fn is_empty(string: &str, offset: &mut usize) -> bool {
+//     *offset < string.len()
+// }
 
-    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-        i += 1;
-    }
+// fn parse_keyword(string: &str, offset: &mut usize, keyword: &str) -> bool {
+//     if *offset + keyword.len() > string.len() {
+//         return false;
+//     }
+//     if string[*offset..].starts_with(keyword) {
+//         if *offset + keyword.len() == string.len() {
+//             true
+//         } else {
+//             let char: u8 = string[*offset + keyword.len()..].as_bytes()[0];
 
-    if i >= bytes.len() {
-        return Err(ParseError { err_index: i });
-    }
+//             if !char.is_ascii_alphanumeric() && !(char == b'_') {
+//                 *offset += keyword.len();
+//                 true
+//             } else {
+//                 false
+//             }
+//         }
+//     } else {
+//         false
+//     }
+// }
 
-    *offset = i;
-    Ok(())
-}
+// fn parse_word<'a>(string: &'a str, offset: &mut usize) -> Result<&'a str, ParseError> {
+//     let bytes: &[u8] = string.as_bytes();
+//     let mut i: usize = *offset;
+//     let start: usize = i;
+//     let c: u8 = bytes[i];
 
-fn is_empty(string: &str, offset: &mut usize) -> bool {
-    *offset < string.len()
-}
+//     if !(c.is_ascii_alphabetic() || c == b'_') {
+//         return Err(ParseError { offset: i });
+//     }
+//     i += 1;
 
-fn parse_keyword(string: &str, offset: &mut usize, keyword: &str) -> bool {
-    if *offset + keyword.len() > string.len() {
-        return false;
-    }
-    if string[*offset..].starts_with(keyword) {
-        if *offset + keyword.len() == string.len() {
-            true
-        } else {
-            let char: u8 = string[*offset + keyword.len()..].as_bytes()[0];
+//     while i < bytes.len() {
+//         let c = bytes[i];
+//         if c.is_ascii_alphanumeric() || c == b'_' {
+//             i += 1;
+//         } else {
+//             break;
+//         }
+//     }
 
-            if !char.is_ascii_alphanumeric() && !(char == b'_') {
-                *offset += keyword.len();
-                true
-            } else {
-                false
-            }
-        }
-    } else {
+//     *offset = i;
+
+//     Ok(&string[start..i])
+// }
+
+// // TODO add support for hex / bin / oct / dec in format NfM, where N is width, f is base and M is number
+// fn parse_number(string: &str, offset: &mut usize) -> Result<usize, ParseError> {
+//     skip_ascii_whitespace(string, offset)?;
+
+//     let bytes: &[u8] = string.as_bytes();
+//     let mut i: usize = *offset;
+//     let start: usize = i;
+//     let c: u8 = bytes[i];
+
+//     if !(c.is_ascii_digit()) {
+//         return Err(ParseError { offset: i });
+//     }
+//     i += 1;
+
+//     while i < bytes.len() {
+//         let c = bytes[i];
+//         if c.is_ascii_digit() {
+//             i += 1;
+//         } else {
+//             break;
+//         }
+//     }
+
+//     *offset = i;
+
+//     Ok(string[start..i].parse::<usize>().unwrap())
+// }
+
+// fn parse_colon(string: &str, offset: &mut usize) -> Result<(), ParseError> {
+//     skip_ascii_whitespace(string, offset)?;
+
+//     let bytes: &[u8] = string.as_bytes();
+//     let mut i: usize = *offset;
+//     let c: u8 = bytes[i];
+
+//     if !(c == b':') {
+//         return Err(ParseError { offset: i });
+//     }
+//     i += 1;
+
+//     *offset = i;
+//     Ok(())
+// }
+
+fn check_token(tokens: &[Token], expected: TokenType) -> bool {
+    // expect_tokens(tokens)?;
+    if tokens.len() == 0 {
         false
+    } else {
+        std::mem::discriminant(&tokens[0].token_type) == std::mem::discriminant(&expected)
     }
 }
 
-fn parse_word<'a>(string: &'a str, offset: &mut usize) -> Result<&'a str, ParseError> {
-    skip_ascii_whitespace(string, offset)?;
-
-    let bytes: &[u8] = string.as_bytes();
-    let mut i: usize = *offset;
-    let start: usize = i;
-    let c: u8 = bytes[i];
-
-    if !(c.is_ascii_alphabetic() || c == b'_') {
-        return Err(ParseError { err_index: i });
+fn expect_tokens(tokens: &[Token]) -> Result<(), ParseError> {
+    if tokens.len() > 0 {
+        Ok(())
+    } else {
+        eprintln!("Unexpected End, line: {}", line!());
+        Err(ParseError::UnexpectedEnd)
     }
-    i += 1;
-
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c.is_ascii_alphanumeric() || c == b'_' {
-            i += 1;
-        } else {
-            break;
-        }
-    }
-
-    *offset = i;
-
-    Ok(&string[start..i])
 }
 
-// TODO add support for hex / bin / oct / dec in format NfM, where N is width, f is base and M is number
-fn parse_number(string: &str, offset: &mut usize) -> Result<usize, ParseError> {
-    skip_ascii_whitespace(string, offset)?;
+fn parse_token<'a>(tokens: &'a [Token], expected: TokenType) -> Result<&'a [Token], ParseError> {
+    expect_tokens(tokens)?;
 
-    let bytes: &[u8] = string.as_bytes();
-    let mut i: usize = *offset;
-    let start: usize = i;
-    let c: u8 = bytes[i];
-
-    if !(c.is_ascii_digit()) {
-        return Err(ParseError { err_index: i });
+    if std::mem::discriminant(&tokens[0].token_type) == std::mem::discriminant(&expected) {
+        Ok(&tokens[1..])
+    } else {
+        eprintln!("Unexpected token, line: {}", line!());
+        Err(ParseError::UnexpectedToken(tokens[0].clone()))
     }
-    i += 1;
-
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c.is_ascii_digit() {
-            i += 1;
-        } else {
-            break;
-        }
-    }
-
-    *offset = i;
-
-    Ok(string[start..i].parse::<usize>().unwrap())
 }
 
-fn parse_colon(string: &str, offset: &mut usize) -> Result<(), ParseError> {
-    skip_ascii_whitespace(string, offset)?;
+fn parse_name<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], String), ParseError> {
+    expect_tokens(tokens)?;
 
-    let bytes: &[u8] = string.as_bytes();
-    let mut i: usize = *offset;
-    let c: u8 = bytes[i];
-
-    if !(c == b':') {
-        return Err(ParseError { err_index: i });
+    if let TokenType::Name(name) = &tokens[0].token_type {
+        Ok((&tokens[1..], name.clone()))
+    } else {
+        eprintln!("Unexpected token, line: {}", line!());
+        Err(ParseError::UnexpectedToken(tokens[0].clone()))
     }
-    i += 1;
+}
 
-    *offset = i;
-    Ok(())
+fn parse_keyword<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], Keyword), ParseError> {
+    expect_tokens(tokens)?;
+
+    if let TokenType::Keyword(keyword) = &tokens[0].token_type {
+        Ok((&tokens[1..], *keyword))
+    } else {
+        eprintln!("Unexpected token, line: {}", line!());
+        Err(ParseError::UnexpectedToken(tokens[0].clone()))
+    }
 }
 
 fn parse_brackets<'a>(
-    string: &'a str,
-    open: char,
-    close: char,
-    offset: &mut usize,
-) -> Result<&'a str, ParseError> {
-    let bytes: &[u8] = string.as_bytes();
-    let mut i: usize = *offset;
+    tokens: &'a [Token],
+    open: TokenType,
+    close: TokenType,
+) -> Result<(&'a [Token], &'a [Token]), ParseError> {
+    expect_tokens(tokens)?;
 
-    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-        i += 1;
+    if tokens[0].token_type != open {
+        eprintln!("Unexpected token, line: {}", line!());
+        return Err(ParseError::UnexpectedToken(tokens[0].clone()));
     }
 
-    if i >= bytes.len() {
-        eprintln!("Expectd (, got nothing");
-        return Err(ParseError { err_index: i });
-    }
-
-    if bytes[i] != open as u8 {
-        eprintln!("Expectd {}, got {}", open, bytes[i]);
-        return Err(ParseError { err_index: i });
-    }
-
-    let start: usize = i;
     let mut count: i32 = 1;
-    i += 1;
+    let mut i: usize = 1;
 
-    while count > 0 && i < bytes.len() {
-        if bytes[i] == open as u8 {
+    while count > 0 && i < tokens.len() {
+        if tokens[i].token_type == open {
             count += 1;
-        } else if bytes[i] == close as u8 {
+        } else if tokens[i].token_type == close {
             count -= 1;
         }
         i += 1;
     }
 
     if count == 0 {
-        *offset = i;
-
-        Ok(&string[start + 1..i - 1])
+        Ok((&tokens[i..], &tokens[1..(i - 1)]))
     } else {
-        Err(ParseError { err_index: i })
+        eprintln!("Unexpected End, line: {}, tokens: {:?}", line!(), tokens);
+        Err(ParseError::UnexpectedEnd)
     }
 }
 
-fn parse_port_list<'a>(string: &'a str, offset: &mut usize) -> Result<Option<Port>, ParseError> {
-    if let Err(_) = skip_ascii_whitespace(string, offset) {
-        return Ok(None);
+fn parse_port_list<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], Option<Port>), ParseError> {
+    if tokens.len() == 0 {
+        return Ok((tokens, None));
     }
 
-    let name: &str = parse_word(string, offset)?;
-    parse_colon(string, offset)?;
+    let (tokens, name) = parse_name(tokens)?;
+    let tokens = parse_token(tokens, TokenType::Colon)?;
 
-    let direction: PortDir = match parse_word(string, offset)? {
-        "input" => PortDir::Input,
-        "output" => PortDir::Output,
-        "inout" => PortDir::Inout,
+    let (tokens, direction) = match parse_keyword(tokens)? {
+        (tokens, Keyword::Input) => (tokens, PortDir::Input),
+        (tokens, Keyword::Output) => (tokens, PortDir::Output),
+        (tokens, Keyword::Inout) => (tokens, PortDir::Inout),
         _ => {
-            return Err(ParseError { err_index: *offset });
+            eprintln!("Unexpected token, line: {}", line!());
+            return Err(ParseError::UnexpectedToken(tokens[0].clone()));
         }
     };
 
-    skip_ascii_whitespace(string, offset)?;
+    let (width, tokens): (Rc<Box<dyn CompileTimeExpression>>, &[Token]) =
+        if check_token(tokens, TokenType::OpenBracket) {
+            let (tokens, expression) =
+                parse_brackets(tokens, TokenType::OpenBracket, TokenType::CloseBracket)?;
 
-    let bytes: &[u8] = string.as_bytes();
+            let (remained_tokens, expression) = parse_compile_time_expression(expression)?;
 
-    let width: Rc<Box<dyn CompileTimeExpression>> = if *offset <= string.len()
-        && bytes[*offset] == b'['
+            if remained_tokens.len() != 0 {
+                return Err(ParseError::UnexpectedToken(remained_tokens[0].clone()));
+            }
+
+            (expression, tokens)
+        } else {
+            (Rc::new(Box::new(Const { value: 1 })), tokens)
+        };
+
+    let (modifiers, tokens): (Vec<PortModifier>, &[Token]) = if check_token(tokens, TokenType::Less)
     {
-        let mut inner_offset: usize = 0;
-        parse_compile_time_expression(parse_brackets(string, '[', ']', offset)?, &mut inner_offset)?
+        let (tokens, _expression) = parse_brackets(tokens, TokenType::Less, TokenType::More)?;
+        // TODO Modifiers parser
+        (vec![], tokens)
     } else {
-        Rc::new(Box::new(Const { value: 1 }))
+        (vec![], tokens)
     };
 
-    if *offset <= string.len() && bytes[*offset] == b'<' {
-        let modifiers: &str = parse_brackets(string, '<', '>', offset)?;
-
-        println!("Name: {}; Modifiers: {}", name, modifiers);
-    }
-
-    if let Err(_) = skip_ascii_whitespace(string, offset) {
-        return Ok(None);
-    }
-
-    if *offset < bytes.len() && bytes[*offset] != b',' {
-        return Err(ParseError { err_index: *offset });
-    }
-
-    if *offset < bytes.len() && bytes[*offset] == b',' {
-        *offset += 1;
-    }
-
-    Ok(Some(Port {
-        name: name.to_string(),
-        direction,
-        width,
-        modifiers: vec![],
-    }))
-}
-
-fn parse_module<'a>(
-    string: &'a str,
-    offset: &mut usize,
-) -> Result<(&'a str, &'a str, &'a str), ParseError> {
-    let name: &str = parse_word(&string, offset)?;
-    let interface: &str = parse_brackets(&string, '(', ')', offset)?;
-    let body: &str = parse_brackets(&string, '{', '}', offset)?;
-    Ok((name, interface, body))
-}
-
-pub fn parse_inner_expression(
-    string: &str,
-    offset: &mut usize,
-) -> Result<Rc<Box<dyn CompileTimeExpression>>, ParseError> {
-    let inner_string: &str = parse_brackets(string, '(', ')', offset)?;
-    eprintln!("Inner string: {}", inner_string);
-    let mut inner_offset: usize = 0;
-
-    match parse_compile_time_expression(inner_string, &mut inner_offset) {
-        Ok(exp) => Ok(exp),
-        Err(err) => Err(ParseError {
-            err_index: err.err_index + *offset,
+    Ok((
+        tokens,
+        Some(Port {
+            name,
+            direction,
+            width,
+            modifiers,
         }),
-    }
+    ))
+}
+
+// fn parse_module<'a>(
+//     string: &'a str,
+//     offset: &mut usize,
+// ) -> Result<(&'a str, &'a str, &'a str), ParseError> {
+//     let name: &str = parse_word(&string, offset)?;
+//     let interface: &str = parse_brackets(&string, '(', ')', offset)?;
+//     let body: &str = parse_brackets(&string, '{', '}', offset)?;
+//     Ok((name, interface, body))
+// }
+
+fn split_by_comma<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], &'a [Token]), ParseError> {
+    let idx: usize = tokens
+        .iter()
+        .position(|t| t.token_type == TokenType::Comma)
+        .ok_or(ParseError::ExpectedComma)?;
+
+    let (left, right) = tokens.split_at(idx);
+
+    Ok((left, &right[1..]))
 }
 
 fn collapse_expression(
@@ -280,110 +297,225 @@ fn collapse_expression(
     }
 }
 
-pub fn parse_compile_time_expression(
-    string: &str,
-    offset: &mut usize,
-) -> Result<Rc<Box<dyn CompileTimeExpression>>, ParseError> {
-    skip_ascii_whitespace(string, offset)?;
-    // is_empty(string, offset)?;
+pub fn parse_compile_time_expression<'a>(
+    tokens: &'a [Token],
+) -> Result<(&'a [Token], Rc<Box<dyn CompileTimeExpression>>), ParseError> {
+    expect_tokens(tokens)?;
 
     let mut expressions: Vec<Rc<Box<dyn CompileTimeExpression>>> = vec![];
     let mut operations: Vec<BinaryOperation> = vec![];
 
-    while *offset < string.len() {
-        let first_char = string.as_bytes()[*offset];
+    let mut i: usize = 0;
 
-        if first_char.is_ascii_whitespace() {
-            *offset = *offset + 1;
-        } else if first_char == b'(' {
-            eprintln!("Offset before: {}", *offset);
-            expressions.push(parse_inner_expression(string, offset)?);
-            eprintln!("Offset after: {}", *offset);
-        } else if first_char == b'+' {
-            *offset = *offset + 1;
-            operations.push(BinaryOperation::Add);
-        } else if first_char == b'-' {
-            *offset = *offset + 1;
-            operations.push(BinaryOperation::Sub);
-        } else if first_char == b'*' {
-            *offset = *offset + 1;
-            operations.push(BinaryOperation::Mul);
-        } else if first_char == b'/' {
-            *offset = *offset + 1;
-            operations.push(BinaryOperation::Div);
-        } else if first_char == b'%' {
-            *offset = *offset + 1;
-            operations.push(BinaryOperation::Mod);
-        } else if parse_keyword(string, offset, "clog2") {
-            expressions.push(Rc::new(Box::new(UnaryExpression {
-                exp: parse_inner_expression(string, offset)?,
-                op: crate::expression::UnaryOperation::Clog2,
-            })));
-        } else if parse_keyword(string, offset, "max") {
-            let lhs: Rc<Box<dyn CompileTimeExpression>> = parse_inner_expression(string, offset)?;
-            parse_colon(string, offset)?;
-            let rhs: Rc<Box<dyn CompileTimeExpression>> = parse_inner_expression(string, offset)?;
+    while i < tokens.len() {
+        // let first_char = string.as_bytes()[*offset];
 
-            expressions.push(Rc::new(Box::new(BinaryExpression {
-                lhs,
-                rhs,
-                op: crate::expression::BinaryOperation::Max,
-            })));
-        } else if parse_keyword(string, offset, "min") {
-            let lhs: Rc<Box<dyn CompileTimeExpression>> = parse_inner_expression(string, offset)?;
-            parse_colon(string, offset)?;
-            let rhs: Rc<Box<dyn CompileTimeExpression>> = parse_inner_expression(string, offset)?;
+        match &tokens[i].token_type {
+            TokenType::OpenParenthesis => {
+                let (_rest_tokens, inner_tokens) = parse_brackets(
+                    &tokens[i..],
+                    TokenType::OpenParenthesis,
+                    TokenType::CloseParenthesis,
+                )?;
 
-            expressions.push(Rc::new(Box::new(BinaryExpression {
-                lhs,
-                rhs,
-                op: crate::expression::BinaryOperation::Min,
-            })));
-        } else if let Ok(number) = parse_number(string, offset) {
-            expressions.push(Rc::new(Box::new(Const { value: number })));
-        } else if let Ok(name) = parse_word(string, offset) {
-            expressions.push(Rc::new(Box::new(Parameter { name: name.into() })));
-        } else {
-            *offset = *offset + 1;
-            eprintln!("Got unexpected char: {}", first_char as char); // TODO proper error propagation
+                let (remain_tokens, exp) = parse_compile_time_expression(inner_tokens)?;
+
+                if remain_tokens.len() != 0 {
+                    return Err(ParseError::UnexpectedToken(remain_tokens[0].clone()));
+                }
+
+                expressions.push(exp);
+                i += inner_tokens.len() + 2;
+            }
+
+            TokenType::Plus => {
+                operations.push(BinaryOperation::Add);
+                i += 1;
+            }
+            TokenType::Minus => {
+                operations.push(BinaryOperation::Sub);
+                i += 1;
+            }
+            TokenType::Multiply => {
+                operations.push(BinaryOperation::Mul);
+                i += 1;
+            }
+            TokenType::Divide => {
+                operations.push(BinaryOperation::Div);
+                i += 1;
+            }
+            TokenType::Mod => {
+                operations.push(BinaryOperation::Mod);
+                i += 1;
+            }
+            TokenType::Keyword(Keyword::Clog2) => {
+                let (_rest_tokens, inner_tokens) = parse_brackets(
+                    &tokens[(i + 1)..],
+                    TokenType::OpenParenthesis,
+                    TokenType::CloseParenthesis,
+                )?;
+
+                let (remain_tokens, exp) = parse_compile_time_expression(inner_tokens)?;
+
+                if remain_tokens.len() != 0 {
+                    return Err(ParseError::UnexpectedToken(remain_tokens[0].clone()));
+                }
+
+                expressions.push(Rc::new(Box::new(UnaryExpression {
+                    exp,
+                    op: crate::expression::UnaryOperation::Clog2,
+                })));
+                i += inner_tokens.len() + 3;
+            }
+            TokenType::Keyword(Keyword::Max) => {
+                let (_rest_tokens, inner_tokens) = parse_brackets(
+                    &tokens[(i + 1)..],
+                    TokenType::OpenParenthesis,
+                    TokenType::CloseParenthesis,
+                )?;
+
+                let (remain_tokens, lhs) = parse_compile_time_expression(inner_tokens)?;
+                let (remain_tokens, rhs) = parse_compile_time_expression(&remain_tokens[1..])?;
+
+                if remain_tokens.len() != 0 {
+                    return Err(ParseError::UnexpectedToken(remain_tokens[0].clone()));
+                }
+
+                expressions.push(Rc::new(Box::new(BinaryExpression {
+                    lhs,
+                    rhs,
+                    op: crate::expression::BinaryOperation::Max,
+                })));
+                i += inner_tokens.len() + 3;
+            }
+            TokenType::Keyword(Keyword::Min) => {
+                let (_rest_tokens, inner_tokens) = parse_brackets(
+                    &tokens[(i + 1)..],
+                    TokenType::OpenParenthesis,
+                    TokenType::CloseParenthesis,
+                )?;
+
+                let (remain_tokens, lhs) = parse_compile_time_expression(inner_tokens)?;
+                let (remain_tokens, rhs) = parse_compile_time_expression(&remain_tokens[1..])?;
+
+                if remain_tokens.len() != 0 {
+                    return Err(ParseError::UnexpectedToken(remain_tokens[0].clone()));
+                }
+
+                expressions.push(Rc::new(Box::new(BinaryExpression {
+                    lhs,
+                    rhs,
+                    op: crate::expression::BinaryOperation::Min,
+                })));
+                i += inner_tokens.len() + 3;
+            }
+            TokenType::Number(number) => {
+                expressions.push(Rc::new(Box::new(Const {
+                    value: number.parse().unwrap(),
+                })));
+                i += 1;
+            }
+            TokenType::Name(name) => {
+                expressions.push(Rc::new(Box::new(Parameter { name: name.clone() })));
+                i += 1;
+            }
+            TokenType::Comma => {
+                break;
+            }
+            _ => {
+                eprintln!("Unexpected token, line: {}", line!());
+                return Err(ParseError::UnexpectedToken(tokens[i].clone()));
+            }
         }
     }
 
-    assert!(expressions.len() > 0); // TODO
+    // assert!(expressions.len() > 0); // TODO
 
-    eprintln!("Expressions: {:?}", expressions);
-    eprintln!("Operations: {:?}", operations);
+    // eprintln!("Expressions: {:?}", expressions);
+    // eprintln!("Operations: {:?}", operations);
 
-    Ok(collapse_expression(&mut expressions, &mut operations))
+    Ok((
+        &tokens[i..],
+        collapse_expression(&mut expressions, &mut operations),
+    ))
+}
+
+fn parse_module<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], Module), ParseError> {
+    let (tokens, name) = parse_name(tokens)?;
+
+    let (tokens, interface) = parse_brackets(
+        tokens,
+        TokenType::OpenParenthesis,
+        TokenType::CloseParenthesis,
+    )?;
+
+    let mut interface = interface;
+
+    let mut ports: Vec<Port> = Vec::new();
+
+    loop {
+        let port: Option<Port>;
+
+        (interface, port) = parse_port_list(interface)?;
+
+        if let Some(port) = port {
+            ports.push(port);
+        } else {
+            break;
+        }
+
+        if !check_token(interface, TokenType::Comma) {
+            break;
+        } else {
+            interface = parse_token(interface, TokenType::Comma)?
+        }
+    }
+
+    if interface.len() > 0 {
+        eprintln!("Unexpected token, line: {}", line!());
+        return Err(ParseError::UnexpectedToken(interface[0].clone()));
+    }
+
+    let (tokens, _body) = parse_brackets(tokens, TokenType::OpenBrace, TokenType::CloseBrace)?;
+
+    Ok((
+        tokens,
+        Module {
+            name,
+            parameters: vec![],
+            logic: (),
+            interface: (),
+        },
+    ))
+}
+
+fn tokenize(string: &str) -> Vec<Token> {
+    let tokens: Vec<Token> = crate::tokens::Token::from_str(string)
+        .iter()
+        .cloned()
+        .filter(|token| !token.token_type.is_comment())
+        .collect();
+    tokens
 }
 
 pub fn parse_str(string: &str) -> Result<(), ParseError> {
-    // TODO Remove comments before parsing, maybe added nested multiline comments?
+    let tokens: Vec<Token> = tokenize(string);
+    let mut tokens: &[Token] = tokens.as_slice();
 
-    let mut offset: usize = 0;
+    while tokens.len() > 0 {
+        let token: &Token = &tokens[0];
+        match (&token.token_type, token.offset) {
+            (TokenType::Keyword(crate::tokens::Keyword::Module), _) => {
+                let module: Module;
 
-    let keyword: &str = parse_word(string, &mut offset)?;
+                (tokens, module) = parse_module(&tokens[1..])?;
 
-    match keyword {
-        "module" => {
-            let (name, interface, body) = (parse_module(string, &mut offset))?;
-            eprintln!(
-                "Module name: {} \n\n interface: {} \n\n body: {}",
-                name, interface, body
-            );
-
-            let mut connections: Vec<Port> = vec::Vec::<Port>::new();
-
-            let mut interface_offset: usize = 0;
-
-            while let Some(connection) = parse_port_list(interface, &mut interface_offset)? {
-                println!("Connection: {:?}", connection);
-                connections.push(connection);
+                eprintln!("Parsed module {}", module.name);
             }
-        }
-        _ => {
-            eprintln!("Unknown keyword {}", keyword);
-            return Err(ParseError { err_index: offset });
+            _ => {
+                eprintln!("Unexpected token {:?}", token);
+                return Err(ParseError::UnexpectedToken(token.clone()));
+            }
         }
     }
 
@@ -462,72 +594,75 @@ mod tests {
         ];
 
         let ref_str: [&str; _] = [
-            "",
-            "1",
-            "x",
-            "clog2(8)",
-            "1+2",
-            "x+y",
-            "(1+2)",
-            "(x+y)",
-            "1+2*3",
-            "(1+2)*3",
-            "1+(2*3)",
-            "((1))",
-            "((x))",
-            "clog2((8))",
-            "x+(y*z)",
-            "(x+1)+(y+2)",
-            "(a+b)*(c+d)",
-            "(1+clog2(8))*2",
-            "(x*y)+(z/3)",
-            "(a+b)+((c+d)*e)",
-            "1+2+(3+4)",
-            "(x+y)+(z+1)",
-            "clog2(x+y)",
-            "(1+2)*(3+4)",
-            "((1+2)*3)+4",
-            "x+((y+z)*2)",
-            "(clog2(x)+clog2(y))*z",
-            "(1+2)*(x+3)",
-            "(a*b)+(c*d)",
-            "((x+y)+z)",
-            "((1+2)+(3+4))",
-            "(x+(y+z))*2",
-            "((x))",
-            "x+(y*clog2(8))",
-            "(1+clog2(4))+(x*2)",
-            "((a*b)+c)",
-            "(x+y+z)",
-            "((1+2)*(3+4))",
-            "x+((y+z)+clog2(8))",
-            "(clog2(2*x)+y)-z",
-            "(x*y)+(clog2(y+z))",
-            "(x+(y*z))+((a+b)*c)",
-            "((x*y)+(z/2))",
-            "(x*2)+((y+3)*z)",
-            "((x+1)+y)+z",
-            "(1+(2*(3+4)))",
-            "(x+((y+z)+1))",
-            "(x+(y+(z*2)))",
+            " ",
+            " 1",
+            " x",
+            " clog2(8)",
+            " 1+2",
+            " x+y",
+            " (1+2)",
+            " (x+y)",
+            " 1+2*3",
+            " (1+2)*3",
+            " 1+(2*3)",
+            " ((1))",
+            " ((x))",
+            " clog2((8))",
+            " x+(y*z)",
+            " (x+1)+(y+2)",
+            " (a+b)*(c+d)",
+            " (1+clog2(8))*2",
+            " (x*y)+(z/3)",
+            " (a+b)+((c+d)*e)",
+            " 1+2+(3+4)",
+            " (x+y)+(z+1)",
+            " clog2(x+y)",
+            " (1+2)*(3+4)",
+            " ((1+2)*3)+4",
+            " x+((y+z)*2)",
+            " (clog2(x)+clog2(y))*z",
+            " (1+2)*(x+3)",
+            " (a*b)+(c*d)",
+            " ((x+y)+z)",
+            " ((1+2)+(3+4))",
+            " (x+(y+z))*2",
+            " ((x))",
+            " x+(y*clog2(8))",
+            " (1+clog2(4))+(x*2)",
+            " ((a*b)+c)",
+            " (x+y+z)",
+            " ((1+2)*(3+4))",
+            " x+((y+z)+clog2(8))",
+            " (clog2(2*x)+y)-z",
+            " (x*y)+(clog2(y+z))",
+            " (x+(y*z))+((a+b)*c)",
+            " ((x*y)+(z/2))",
+            " (x*2)+((y+3)*z)",
+            " ((x+1)+y)+z",
+            " (1+(2*(3+4)))",
+            " (x+((y+z)+1))",
+            " (x+(y+(z*2)))",
         ];
 
         for i in 0..test_str.len() {
-            let mut offset: usize = 0;
-
             eprintln!("Iteration: {}", i);
 
             assert_eq!(
-                parse_brackets(test_str[i], '(', ')', &mut offset).unwrap(),
-                ref_str[i]
+                parse_brackets(
+                    &tokenize(test_str[i]),
+                    TokenType::OpenParenthesis,
+                    TokenType::CloseParenthesis
+                )
+                .unwrap()
+                .1,
+                tokenize(ref_str[i]).as_slice(),
             );
-            assert_eq!(offset, test_str[i].len());
         }
     }
 
     #[test]
     fn test_parse_expressions() {
-        let test_str: [&str; 48] = [
+        let test_str: [&str; 49] = [
             "0",
             "1",
             "42",
@@ -576,9 +711,10 @@ mod tests {
             "clog2(2+6)",
             "(7+8)-(clog2(32)/4)",
             "(1+2+3+4+5)",
+            "min(max(2, 4), max(3, 8))",
         ];
 
-        let test_lambdas: [fn() -> usize; 48] = [
+        let test_lambdas: [fn() -> usize; 49] = [
             || 0,
             || 1,
             || 42,
@@ -627,18 +763,18 @@ mod tests {
             || clog2(2 + 6),
             || (7 + 8) - (clog2(32) / 4),
             || 1 + 2 + 3 + 4 + 5,
+            || 4,
         ];
 
         let map: HashMap<String, usize> = HashMap::new();
 
         for i in 0..test_str.len() {
-            let mut offset: usize = 0;
-
             eprintln!("Iteration: {}, expression: {}", i, test_str[i]);
 
-            let exp: Rc<Box<dyn CompileTimeExpression>> =
-                parse_compile_time_expression(test_str[i], &mut offset).unwrap();
+            let tokens = tokenize(test_str[i]);
+            let (tokens, exp) = parse_compile_time_expression(&tokens).unwrap();
 
+            assert_eq!(tokens.len(), 0);
             eprintln!("Expression: {:?}", exp);
 
             assert_eq!(exp.calculate(&map).unwrap(), test_lambdas[i]());
@@ -755,20 +891,19 @@ mod tests {
 
         let mut rng = rand::rng();
 
-        for _ in 0..200 {
-            map.insert("x".to_string(), rng.random_range(0..=200));
-            map.insert("y".to_string(), rng.random_range(0..=200));
-            map.insert("z".to_string(), rng.random_range(0..=200));
+        for i in 0..test_str.len() {
+            eprintln!("Iteration: {}, expression: {}", i, test_str[i]);
 
-            for i in 0..test_str.len() {
-                let mut offset: usize = 0;
+            let tokens = tokenize(test_str[i]);
+            let (tokens, exp) = parse_compile_time_expression(&tokens).unwrap();
 
-                eprintln!("Iteration: {}, expression: {}", i, test_str[i]);
+            assert_eq!(tokens.len(), 0);
+            eprintln!("Expression: {:?}", exp);
 
-                let exp: Rc<Box<dyn CompileTimeExpression>> =
-                    parse_compile_time_expression(test_str[i], &mut offset).unwrap();
-
-                eprintln!("Expression: {:?}", exp);
+            for _ in 0..200 {
+                map.insert("x".to_string(), rng.random_range(0..=200));
+                map.insert("y".to_string(), rng.random_range(0..=200));
+                map.insert("z".to_string(), rng.random_range(0..=200));
 
                 let calc: Option<usize> = exp.calculate(&map);
 

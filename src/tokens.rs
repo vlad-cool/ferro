@@ -6,6 +6,12 @@ pub enum Keyword {
     Else,
     Case,
     Always,
+    Input,
+    Output,
+    Inout,
+    Min,
+    Max,
+    Clog2,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,10 +53,20 @@ pub enum TokenType {
     Unknown,
 }
 
+impl TokenType {
+    pub fn is_comment(&self) -> bool {
+        match self {
+            Self::LineComment(_) => true,
+            Self::BlockComment(_) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
-    offset: usize,
-    token_type: TokenType,
+    pub offset: usize,
+    pub token_type: TokenType,
 }
 
 impl Token {
@@ -89,6 +105,15 @@ impl Token {
         ("else", TokenType::Keyword(Keyword::Else)),
         ("case", TokenType::Keyword(Keyword::Case)),
         ("always", TokenType::Keyword(Keyword::Always)),
+        ("input", TokenType::Keyword(Keyword::Input)),
+        ("output", TokenType::Keyword(Keyword::Output)),
+        ("inout", TokenType::Keyword(Keyword::Inout)),
+        // ("static::min", TokenType::Keyword(Keyword::Min)), // TODO?
+        // ("static::max", TokenType::Keyword(Keyword::Max)),
+        // ("static::clog2", TokenType::Keyword(Keyword::Clog2)),
+        ("min", TokenType::Keyword(Keyword::Min)),
+        ("max", TokenType::Keyword(Keyword::Max)),
+        ("clog2", TokenType::Keyword(Keyword::Clog2)),
     ];
 
     fn is_au(symbol: char) -> bool {
@@ -130,7 +155,7 @@ impl Token {
                         string[(offset + 2)..(offset + i)].to_string(),
                     ),
                 });
-                
+
                 offset += i + 2;
                 continue 'main_loop;
             }
@@ -319,10 +344,10 @@ mod tests {
                 TokenType::Keyword(Keyword::Module),
                 TokenType::Name("foo".to_string()),
                 TokenType::OpenParenthesis,
-                TokenType::Name("input".to_string()),
+                TokenType::Keyword(Keyword::Input),
                 TokenType::Name("a".to_string()),
                 TokenType::Comma,
-                TokenType::Name("input".to_string()),
+                TokenType::Keyword(Keyword::Input),
                 TokenType::Name("b".to_string()),
                 TokenType::CloseParenthesis,
                 TokenType::Semicolon,
@@ -341,10 +366,10 @@ ABOBA AMOGUS*/ input, output",
                 TokenType::Keyword(Keyword::Module),
                 TokenType::Name("foo".to_string()),
                 TokenType::OpenParenthesis,
-                TokenType::Name("input".to_string()),
+                TokenType::Keyword(Keyword::Input),
                 TokenType::Name("a".to_string()),
                 TokenType::Comma,
-                TokenType::Name("input".to_string()),
+                TokenType::Keyword(Keyword::Input),
                 TokenType::Name("b".to_string()),
                 TokenType::CloseParenthesis,
                 TokenType::Semicolon,
@@ -354,9 +379,9 @@ ABOBA AMOGUS*/ input, output",
 ABOBA AMOGUS"
                         .to_string(),
                 ),
-                TokenType::Name("input".to_string()),
+                TokenType::Keyword(Keyword::Input),
                 TokenType::Comma,
-                TokenType::Name("output".to_string()),
+                TokenType::Keyword(Keyword::Output),
             ],
         );
     }

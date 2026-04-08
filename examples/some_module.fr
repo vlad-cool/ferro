@@ -7,6 +7,12 @@ module top (
     btn: input<pin: C3>
 )
 {
+    logic counter: [10];
+
+    always posedge(clk) {
+        counter = counter + 1;
+    }
+
     led_blink<leds_count: 6> LedBlink (
         clk: clk,
         rst: rst,

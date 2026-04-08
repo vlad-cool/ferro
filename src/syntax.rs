@@ -3,10 +3,10 @@ use std::rc::Rc;
 use crate::expression::CompileTimeExpression;
 
 pub struct Module {
-    name: String,
-    parameters: Vec<()>, // TODO
-    logic: (),           // TODO
-    interface: (),       // TODO
+    pub name: String,
+    pub parameters: Vec<()>, // TODO
+    pub logic: (),           // TODO
+    pub interface: (),       // TODO
 }
 
 #[derive(Clone, Copy, Debug)]
