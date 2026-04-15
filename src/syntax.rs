@@ -2,11 +2,12 @@ use std::rc::Rc;
 
 use crate::expression::CompileTimeExpression;
 
+#[derive(Clone, Debug)]
 pub struct Module {
     pub name: String,
-    pub parameters: Vec<()>, // TODO
-    pub logic: (),           // TODO
-    pub interface: (),       // TODO
+    pub parameters: Vec<ParameterDeclaration>,
+    pub logic: (),     // TODO
+    pub interface: (), // TODO
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -74,9 +75,16 @@ struct Net {
     name: String,
 }
 
-struct Parameter {
-    name: String,
-    value: u32,
+#[derive(Clone, Copy, Debug)]
+pub enum ParameterType {
+    Unsigned,
+}
+
+#[derive(Clone, Debug)]
+pub struct ParameterDeclaration {
+    pub name: String,
+    pub default: Option<usize>,
+    pub parameter_type: ParameterType,
 }
 
 struct FlipFlop<'a> {

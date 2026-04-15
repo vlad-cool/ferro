@@ -12,6 +12,8 @@ pub enum Keyword {
     Min,
     Max,
     Clog2,
+    Signed,
+    Unsigned,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -24,6 +26,7 @@ pub enum TokenType {
     Comma,
     Colon,
     Semicolon,
+    Question,
     OpenParenthesis,
     CloseParenthesis,
     OpenBracket,
@@ -74,6 +77,7 @@ impl Token {
         (",", TokenType::Comma),
         (":", TokenType::Colon),
         (";", TokenType::Semicolon),
+        ("?", TokenType::Question),
         ("(", TokenType::OpenParenthesis),
         (")", TokenType::CloseParenthesis),
         ("[", TokenType::OpenBracket),
@@ -114,6 +118,8 @@ impl Token {
         ("min", TokenType::Keyword(Keyword::Min)),
         ("max", TokenType::Keyword(Keyword::Max)),
         ("clog2", TokenType::Keyword(Keyword::Clog2)),
+        ("unsigned", TokenType::Keyword(Keyword::Unsigned)),
+        ("signed", TokenType::Keyword(Keyword::Signed)),
     ];
 
     fn is_au(symbol: char) -> bool {

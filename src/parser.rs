@@ -1,118 +1,20 @@
-use std::{f32::NAN, rc::Rc, vec};
+use std::{rc::Rc, vec};
 
 use crate::{
     expression::{
-        self, BinaryExpression, BinaryOperation, CompileTimeExpression, Const, Parameter,
-        UnaryExpression,
+        BinaryExpression, BinaryOperation, CompileTimeExpression, Const, Parameter, UnaryExpression,
     },
-    syntax::{Module, Port, PortDir, PortModifier},
-    tokens::{Keyword, Token, TokenType},
+    syntax::{Module, ParameterDeclaration, ParameterType, Port, PortDir, PortModifier},
+    tokens::{self, Keyword, Token, TokenType},
 };
 
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedEnd,
     UnexpectedToken(Token),
-    ExpectedComma,
 }
 
-// fn is_empty(string: &str, offset: &mut usize) -> bool {
-//     *offset < string.len()
-// }
-
-// fn parse_keyword(string: &str, offset: &mut usize, keyword: &str) -> bool {
-//     if *offset + keyword.len() > string.len() {
-//         return false;
-//     }
-//     if string[*offset..].starts_with(keyword) {
-//         if *offset + keyword.len() == string.len() {
-//             true
-//         } else {
-//             let char: u8 = string[*offset + keyword.len()..].as_bytes()[0];
-
-//             if !char.is_ascii_alphanumeric() && !(char == b'_') {
-//                 *offset += keyword.len();
-//                 true
-//             } else {
-//                 false
-//             }
-//         }
-//     } else {
-//         false
-//     }
-// }
-
-// fn parse_word<'a>(string: &'a str, offset: &mut usize) -> Result<&'a str, ParseError> {
-//     let bytes: &[u8] = string.as_bytes();
-//     let mut i: usize = *offset;
-//     let start: usize = i;
-//     let c: u8 = bytes[i];
-
-//     if !(c.is_ascii_alphabetic() || c == b'_') {
-//         return Err(ParseError { offset: i });
-//     }
-//     i += 1;
-
-//     while i < bytes.len() {
-//         let c = bytes[i];
-//         if c.is_ascii_alphanumeric() || c == b'_' {
-//             i += 1;
-//         } else {
-//             break;
-//         }
-//     }
-
-//     *offset = i;
-
-//     Ok(&string[start..i])
-// }
-
-// // TODO add support for hex / bin / oct / dec in format NfM, where N is width, f is base and M is number
-// fn parse_number(string: &str, offset: &mut usize) -> Result<usize, ParseError> {
-//     skip_ascii_whitespace(string, offset)?;
-
-//     let bytes: &[u8] = string.as_bytes();
-//     let mut i: usize = *offset;
-//     let start: usize = i;
-//     let c: u8 = bytes[i];
-
-//     if !(c.is_ascii_digit()) {
-//         return Err(ParseError { offset: i });
-//     }
-//     i += 1;
-
-//     while i < bytes.len() {
-//         let c = bytes[i];
-//         if c.is_ascii_digit() {
-//             i += 1;
-//         } else {
-//             break;
-//         }
-//     }
-
-//     *offset = i;
-
-//     Ok(string[start..i].parse::<usize>().unwrap())
-// }
-
-// fn parse_colon(string: &str, offset: &mut usize) -> Result<(), ParseError> {
-//     skip_ascii_whitespace(string, offset)?;
-
-//     let bytes: &[u8] = string.as_bytes();
-//     let mut i: usize = *offset;
-//     let c: u8 = bytes[i];
-
-//     if !(c == b':') {
-//         return Err(ParseError { offset: i });
-//     }
-//     i += 1;
-
-//     *offset = i;
-//     Ok(())
-// }
-
 fn check_token(tokens: &[Token], expected: TokenType) -> bool {
-    // expect_tokens(tokens)?;
     if tokens.len() == 0 {
         false
     } else {
@@ -144,6 +46,17 @@ fn parse_name<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], String), ParseErr
     expect_tokens(tokens)?;
 
     if let TokenType::Name(name) = &tokens[0].token_type {
+        Ok((&tokens[1..], name.clone()))
+    } else {
+        eprintln!("Unexpected token, line: {}", line!());
+        Err(ParseError::UnexpectedToken(tokens[0].clone()))
+    }
+}
+
+fn parse_number<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], String), ParseError> {
+    expect_tokens(tokens)?;
+
+    if let TokenType::Number(name) = &tokens[0].token_type {
         Ok((&tokens[1..], name.clone()))
     } else {
         eprintln!("Unexpected token, line: {}", line!());
@@ -248,27 +161,6 @@ fn parse_port_list<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], Option<Port>
     ))
 }
 
-// fn parse_module<'a>(
-//     string: &'a str,
-//     offset: &mut usize,
-// ) -> Result<(&'a str, &'a str, &'a str), ParseError> {
-//     let name: &str = parse_word(&string, offset)?;
-//     let interface: &str = parse_brackets(&string, '(', ')', offset)?;
-//     let body: &str = parse_brackets(&string, '{', '}', offset)?;
-//     Ok((name, interface, body))
-// }
-
-fn split_by_comma<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], &'a [Token]), ParseError> {
-    let idx: usize = tokens
-        .iter()
-        .position(|t| t.token_type == TokenType::Comma)
-        .ok_or(ParseError::ExpectedComma)?;
-
-    let (left, right) = tokens.split_at(idx);
-
-    Ok((left, &right[1..]))
-}
-
 fn collapse_expression(
     expressions: &mut Vec<Rc<Box<dyn CompileTimeExpression>>>,
     operations: &mut Vec<BinaryOperation>,
@@ -308,8 +200,6 @@ pub fn parse_compile_time_expression<'a>(
     let mut i: usize = 0;
 
     while i < tokens.len() {
-        // let first_char = string.as_bytes()[*offset];
-
         match &tokens[i].token_type {
             TokenType::OpenParenthesis => {
                 let (_rest_tokens, inner_tokens) = parse_brackets(
@@ -429,19 +319,99 @@ pub fn parse_compile_time_expression<'a>(
         }
     }
 
-    // assert!(expressions.len() > 0); // TODO
-
-    // eprintln!("Expressions: {:?}", expressions);
-    // eprintln!("Operations: {:?}", operations);
-
     Ok((
         &tokens[i..],
         collapse_expression(&mut expressions, &mut operations),
     ))
 }
 
+fn split_tokens<'a>(tokens: &'a [Token], separator: TokenType) -> Vec<&'a [Token]> {
+    let mut res: Vec<&[Token]> = Vec::new();
+
+    let mut start: usize = 0;
+
+    for (i, token) in tokens.iter().enumerate() {
+        if token.token_type == separator {
+            res.push(&tokens[start..i]);
+            start = i + 1;
+        }
+    }
+
+    if start < tokens.len() {
+        res.push(&tokens[start..]);
+    }
+
+    res
+}
+
 fn parse_module<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], Module), ParseError> {
     let (tokens, name) = parse_name(tokens)?;
+
+    let (tokens, parameters) = if check_token(tokens, TokenType::Less) {       
+        let (tokens, parameters_tokens) = parse_brackets(tokens, TokenType::Less, TokenType::More)?;
+        let parameters_tokens: Vec<&[Token]> = split_tokens(parameters_tokens, TokenType::Comma);
+        let mut parameters: Vec<ParameterDeclaration> = Vec::new();
+
+        for tokens in parameters_tokens {
+            let (tokens, name) = parse_name(tokens)?;
+            let tokens = parse_token(tokens, TokenType::Colon)?;
+
+            // TODO support other parameters type
+            let parameter_type = if tokens.first().map(|token| &token.token_type)
+                == Some(&TokenType::Keyword(Keyword::Unsigned))
+            {
+                ParameterType::Unsigned
+            } else {
+                if let Some(token) = tokens.first() {
+                    return Err(ParseError::UnexpectedToken(token.clone()));
+                } else {
+                    return Err(ParseError::UnexpectedEnd);
+                }
+            };
+
+            let tokens = &tokens[1..];
+
+            let default: Option<usize> = if check_token(tokens, TokenType::Less) {
+                let (remaining_tokens, tokens) =
+                    parse_brackets(tokens, TokenType::Less, TokenType::More)?;
+                if remaining_tokens.len() != 0 {
+                    return Err(ParseError::UnexpectedToken(tokens[0].clone()));
+                }
+
+                // TODO proper universal modifier parser
+
+                expect_tokens(tokens)?;
+
+                let first_token = tokens[0].clone();
+                let (tokens, modifier_type) = parse_name(tokens)?;
+
+                if modifier_type.as_str() != "default" {
+                    return Err(ParseError::UnexpectedToken(first_token));
+                }
+                let tokens = parse_token(tokens, TokenType::Colon)?;
+                let (tokens, default_value) = parse_number(tokens)?;
+                
+                if tokens.len() != 0 {
+                    return Err(ParseError::UnexpectedToken(tokens[0].clone()));
+                }
+                eprintln!("ASDASDafbsdfkdsgfhjsdgf");
+
+                Some(str::parse::<usize>(default_value.as_str()).unwrap())
+            } else {
+                None
+            };
+
+            parameters.push(ParameterDeclaration {
+                name,
+                default,
+                parameter_type,
+            });
+        }
+
+        (tokens, parameters)
+    } else {
+        (tokens, Vec::new())
+    };
 
     let (tokens, interface) = parse_brackets(
         tokens,
@@ -482,7 +452,7 @@ fn parse_module<'a>(tokens: &'a [Token]) -> Result<(&'a [Token], Module), ParseE
         tokens,
         Module {
             name,
-            parameters: vec![],
+            parameters,
             logic: (),
             interface: (),
         },
@@ -511,6 +481,7 @@ pub fn parse_str(string: &str) -> Result<(), ParseError> {
                 (tokens, module) = parse_module(&tokens[1..])?;
 
                 eprintln!("Parsed module {}", module.name);
+                eprintln!("Parameters {:?}", module.parameters);
             }
             _ => {
                 eprintln!("Unexpected token {:?}", token);
@@ -783,6 +754,142 @@ mod tests {
 
     #[test]
     fn test_parse_parametric_expressions() {
+        let test_str: [&str; _] = [
+            "x",
+            "y",
+            "z",
+            "x+y",
+            "y-z",
+            "x*y",
+            "z/2",
+            "x%y",
+            "x+1",
+            "y-3",
+            "z*4",
+            "clog2(x)",
+            "clog2(y+1)",
+            "clog2(2*z)",
+            "x+y+z",
+            "x*2+y",
+            "z+(x*3)",
+            "(x+y)*z",
+            "clog2(x)+1",
+            "1+clog2(y)",
+            "(x+2)*(y+3)",
+            "z*(x+y)",
+            "(x+clog2(y))*2",
+            "(x*y)+(y*z)",
+            "clog2(x+y)",
+            "(x+1)+(y+2)+(z+3)",
+            "(x*y*z)",
+            "clog2(x*y)",
+            "x+clog2(y*z)",
+            "(x+clog2(y))*(z+2)",
+            "(x+y+z)/2",
+            "(x*2)+(y*3)+(z*4)",
+            "clog2(x*2+y)",
+            "(x+y)*(z+clog2(4))",
+            "x+(y*clog2(8))",
+            "clog2(x)+clog2(y)+clog2(z)",
+            "(x+y+1)*(z+2)",
+            "(x*clog2(y))+z",
+            "(x+y)+(clog2(z)+1)",
+            "clog2(x+y*z)",
+            "(x+clog2(y+z))*2",
+            "x+(y+z)+1",
+            "(x*y)+(clog2(y)+z)",
+            "(x+2)*(y+clog2(z))",
+            "clog2(x*y+z)",
+            "(x+clog2(y))+(z+1)",
+            "(x*y)+clog2(z)",
+        ];
+
+        let test_lambdas: [fn(usize, usize, usize) -> usize; _] = [
+            |x, _y, _z| x,
+            |_x, y, _z| y,
+            |_x, _y, z| z,
+            |x, y, _z| x + y,
+            |_x, y, z| y - z,
+            |x, y, _z| x * y,
+            |_x, _y, z| z / 2,
+            |x, y, _z| x % y,
+            |x, _y, _z| x + 1,
+            |_x, y, _z| y - 3,
+            |_x, _y, z| z * 4,
+            |x, _y, _z| clog2(x),
+            |_x, y, _z| clog2(y + 1),
+            |_x, _y, z| clog2(2 * z),
+            |x, y, z| x + y + z,
+            |x, y, _z| x * 2 + y,
+            |x, _y, z| z + (x * 3),
+            |x, y, z| (x + y) * z,
+            |x, _y, _z| clog2(x) + 1,
+            |_x, y, _z| 1 + clog2(y),
+            |x, y, _z| (x + 2) * (y + 3),
+            |x, y, z| z * (x + y),
+            |x, y, _z| (x + clog2(y)) * 2,
+            |x, y, z| (x * y) + (y * z),
+            |x, y, _z| clog2(x + y),
+            |x, y, z| (x + 1) + (y + 2) + (z + 3),
+            |x, y, z| x * y * z,
+            |x, y, _z| clog2(x * y),
+            |x, y, z| x + clog2(y * z),
+            |x, y, z| (x + clog2(y)) * (z + 2),
+            |x, y, z| (x + y + z) / 2,
+            |x, y, z| (x * 2) + (y * 3) + (z * 4),
+            |x, y, _z| clog2(x * 2 + y),
+            |x, y, z| (x + y) * (z + clog2(4)),
+            |x, y, _z| x + (y * clog2(8)),
+            |x, y, z| clog2(x) + clog2(y) + clog2(z),
+            |x, y, z| (x + y + 1) * (z + 2),
+            |x, y, z| (x * clog2(y)) + z,
+            |x, y, z| (x + y) + (clog2(z) + 1),
+            |x, y, z| clog2(x + y * z),
+            |x, y, z| (x + clog2(y + z)) * 2,
+            |x, y, z| x + (y + z) + 1,
+            |x, y, z| (x * y) + (clog2(y) + z),
+            |x, y, z| (x + 2) * (y + clog2(z)),
+            |x, y, z| clog2(x * y + z),
+            |x, y, z| (x + clog2(y)) + (z + 1),
+            |x, y, z| (x * y) + clog2(z),
+        ];
+
+        let mut map: HashMap<String, usize> = HashMap::new();
+
+        map.insert("x".to_string(), 8);
+        map.insert("y".to_string(), 8);
+        map.insert("z".to_string(), 8);
+
+        let mut rng = rand::rng();
+
+        for i in 0..test_str.len() {
+            eprintln!("Iteration: {}, expression: {}", i, test_str[i]);
+
+            let tokens = tokenize(test_str[i]);
+            let (tokens, exp) = parse_compile_time_expression(&tokens).unwrap();
+
+            assert_eq!(tokens.len(), 0);
+            eprintln!("Expression: {:?}", exp);
+
+            for _ in 0..200 {
+                map.insert("x".to_string(), rng.random_range(0..=200));
+                map.insert("y".to_string(), rng.random_range(0..=200));
+                map.insert("z".to_string(), rng.random_range(0..=200));
+
+                let calc: Option<usize> = exp.calculate(&map);
+
+                let res =
+                    std::panic::catch_unwind(|| test_lambdas[i](map["x"], map["y"], map["z"]));
+
+                if calc.is_some() || res.is_ok() {
+                    assert_eq!(calc.unwrap(), res.unwrap());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_split_tokens() {
         let test_str: [&str; _] = [
             "x",
             "y",

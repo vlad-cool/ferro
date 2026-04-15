@@ -1,4 +1,4 @@
-module top (
+module top<width: unsigned<default: 10>> (
     clk: input<clock, pin: A1, frequency: 27MHz>,
     rst: input<reset, pin: B2, active: low>,
 
